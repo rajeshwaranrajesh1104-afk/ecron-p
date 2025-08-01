@@ -72,25 +72,6 @@ const EventRegistrationForm: React.FC<EventRegistrationFormProps> = ({ onBack })
     setFormData(prev => ({ ...prev, certificateCode: code }));
   };
 
-  // Tamil Nadu Colleges
-  const colleges = [
-    'Anna University',
-    'IIT Madras',
-    'NIT Tiruchirappalli',
-    'PSG College of Technology',
-    'Thiagarajar College of Engineering',
-    'SSN College of Engineering',
-    'Velammal Engineering College',
-    'SRM Institute of Science and Technology',
-    'VIT Vellore',
-    'Amrita Vishwa Vidyapeetham',
-    'Hindustan Institute of Technology',
-    'Loyola College',
-    'Stella Maris College',
-    'Presidency College',
-    'Madras Christian College'
-  ];
-
   // Tamil Nadu Universities
   const universities = [
     'Anna University',
@@ -369,7 +350,8 @@ const EventRegistrationForm: React.FC<EventRegistrationFormProps> = ({ onBack })
               <Building size={16} className="inline mr-2" />
               College Name *
             </label>
-            <select
+            <input
+              type="text"
               id="collegeName"
               name="collegeName"
               value={formData.collegeName}
@@ -377,13 +359,9 @@ const EventRegistrationForm: React.FC<EventRegistrationFormProps> = ({ onBack })
               className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-300 ${
                 errors.collegeName ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-green-400'
               }`}
+              placeholder="Enter your college name"
               aria-describedby={errors.collegeName ? 'college-error' : undefined}
-            >
-              <option value="">Select College</option>
-              {colleges.map((college) => (
-                <option key={college} value={college}>{college}</option>
-              ))}
-            </select>
+            />
             {errors.collegeName && (
               <p id="college-error" className="mt-1 text-sm text-red-600" role="alert">
                 {errors.collegeName}
