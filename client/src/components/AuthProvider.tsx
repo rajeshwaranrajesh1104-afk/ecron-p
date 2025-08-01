@@ -1,17 +1,18 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { AuthService, type AuthUser } from '../lib/auth';
+import { supabase } from '../lib/supabase';
+import type { User, Session } from '@supabase/supabase-js';
+import type { EventRegistration, UserProfile } from '../lib/supabase';
 
 interface AuthContextType {
-  user: AuthUser | null;
-  session: any | null;
+  user: User | null;
+  session: Session | null;
+  userProfile: UserProfile | null;
+  isRegistered: boolean;
   loading: boolean;
+  signUp: (registrationData: Omit<EventRegistration, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName?: string) => Promise<void>;
   signOut: () => Promise<void>;
-  updateProfile: (updates: { full_name?: string; avatar_url?: string }) => Promise<void>;
-  resetPassword: (email: string) => Promise<void>;
-  isAdmin: boolean;
-  hasRole: (role: 'user' | 'admin' | 'instructor') => boolean;
+  checkRegistrationStatus: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,81 +26,151 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [session, setSession] = useState<any | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isRegistered, setIsRegistered] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    // TODO: Initialize authentication with your preferred solution
-    const initializeAuth = async () => {
-      try {
-        // Placeholder - no authentication implemented
-        setUser(null);
-        setSession(null);
-        setIsAdmin(false);
-      } catch (error) {
-        console.log('Auth initialization - no implementation');
-        setUser(null);
-        setSession(null);
-        setIsAdmin(false);
-      } finally {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        checkRegistrationStatus();
+      } else {
         setLoading(false);
       }
-    };
+    });
 
-    initializeAuth();
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        await checkRegistrationStatus();
+      } else {
+        setUserProfile(null);
+        setIsRegistered(false);
+      }
+      
+      setLoading(false);
+    });
 
-    // TODO: Set up auth state change listeners with your auth solution
+    return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    console.log('signIn called - implement with your auth solution');
-    // TODO: Implement with your authentication solution
-    throw new Error('Authentication not implemented');
+  const checkRegistrationStatus = async () => {
+    if (!user) return;
+
+    try {
+      // Check if user has a profile and registration
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*, event_registrations(*)')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        throw profileError;
+      }
+
+      if (profile) {
+        setUserProfile(profile);
+        setIsRegistered(profile.is_registered && profile.event_registrations?.length > 0);
+      } else {
+        setUserProfile(null);
+        setIsRegistered(false);
+      }
+    } catch (error) {
+      console.error('Error checking registration status:', error);
+      setUserProfile(null);
+      setIsRegistered(false);
+    }
   };
 
-  const signUp = async (email: string, password: string, fullName?: string) => {
-    console.log('signUp called - implement with your auth solution');
-    // TODO: Implement with your authentication solution
-    throw new Error('Authentication not implemented');
+  const signUp = async (registrationData: Omit<EventRegistration, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
+    try {
+      // Create auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: registrationData.email_id,
+        password: registrationData.certificate_code, // Using certificate code as password
+        options: {
+          data: {
+            name: registrationData.name,
+          }
+        }
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('Failed to create user');
+
+      // Create user profile
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .insert({
+          id: authData.user.id,
+          email: registrationData.email_id,
+          name: registrationData.name,
+          is_registered: true,
+        });
+
+      if (profileError) throw profileError;
+
+      // Create event registration
+      const { data: registration, error: registrationError } = await supabase
+        .from('event_registrations')
+        .insert({
+          user_id: authData.user.id,
+          ...registrationData,
+        })
+        .select()
+        .single();
+
+      if (registrationError) throw registrationError;
+
+      // Update profile with registration ID
+      const { error: updateError } = await supabase
+        .from('user_profiles')
+        .update({ registration_id: registration.id })
+        .eq('id', authData.user.id);
+
+      if (updateError) throw updateError;
+
+    } catch (error) {
+      console.error('Registration error:', error);
+      throw error;
+    }
+  };
+
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) throw error;
   };
 
   const signOut = async () => {
-    console.log('signOut called - implement with your auth solution');
-    // TODO: Implement with your authentication solution
-    throw new Error('Authentication not implemented');
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
   };
-
-  const updateProfile = async (updates: { full_name?: string; avatar_url?: string }) => {
-    console.log('updateProfile called - implement with your auth solution');
-    // TODO: Implement with your authentication solution
-    throw new Error('Authentication not implemented');
-  };
-
-  const resetPassword = async (email: string) => {
-    console.log('resetPassword called - implement with your auth solution');
-    // TODO: Implement with your authentication solution
-    throw new Error('Authentication not implemented');
-  };
-
-  const hasRole = (role: 'user' | 'admin' | 'instructor'): boolean => {
-    // TODO: Implement with your authentication solution
-    return false;
-  };
-    
 
   const value = {
     user,
     session,
+    userProfile,
+    isRegistered,
     loading,
-    signIn,
     signUp,
+    signIn,
     signOut,
-    updateProfile,
-    resetPassword,
-    isAdmin,
-    hasRole,
+    checkRegistrationStatus,
   };
 
   return (

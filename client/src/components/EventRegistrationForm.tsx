@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, User, GraduationCap, Calendar, Building, Phone, Mail, Shield, Send, CheckCircle } from 'lucide-react';
-import { createEventRegistration } from '../lib/supabaseClient';
+import { useAuth } from './AuthProvider';
 
 interface EventRegistrationFormProps {
-  onBack: () => void;
+  onBack?: () => void;
+  isInitialRegistration?: boolean;
 }
 
 interface FormData {
@@ -23,7 +24,8 @@ interface FormErrors {
   [key: string]: string;
 }
 
-const EventRegistrationForm: React.FC<EventRegistrationFormProps> = ({ onBack }) => {
+const EventRegistrationForm: React.FC<EventRegistrationFormProps> = ({ onBack, isInitialRegistration = false }) => {
+  const { signUp } = useAuth();
   const [formData, setFormData] = useState<FormData>({
     name: '',
     degree: '',
@@ -42,14 +44,6 @@ const EventRegistrationForm: React.FC<EventRegistrationFormProps> = ({ onBack })
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string>('');
   const [captchaQuestion, setCaptchaQuestion] = useState({ question: '', answer: 0 });
-
-  // Check if form was already submitted
-  useEffect(() => {
-    const submitted = localStorage.getItem('campusToCloudRegistered');
-    if (submitted === 'true') {
-      setIsSubmitted(true);
-    }
-  }, []);
 
   // Generate captcha question
   useEffect(() => {
@@ -173,7 +167,7 @@ const EventRegistrationForm: React.FC<EventRegistrationFormProps> = ({ onBack })
     setIsSubmitting(true);
 
     try {
-      await createEventRegistration({
+      await signUp({
         name: formData.name,
         degree: formData.degree,
         year: formData.year,
@@ -185,14 +179,10 @@ const EventRegistrationForm: React.FC<EventRegistrationFormProps> = ({ onBack })
         certificate_code: formData.certificateCode
       });
       
-      // Mark as submitted in localStorage
-      localStorage.setItem('campusToCloudRegistered', 'true');
-      localStorage.setItem('campusToCloudData', JSON.stringify(formData));
-      
       setIsSubmitted(true);
     } catch (error) {
       console.error('Registration error:', error);
-      setSubmitError('Registration failed. Please try again.');
+      setSubmitError(error instanceof Error ? error.message : 'Registration failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -222,12 +212,14 @@ const EventRegistrationForm: React.FC<EventRegistrationFormProps> = ({ onBack })
             </p>
           </div>
 
-          <button
-            onClick={onBack}
-            className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white px-8 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105"
-          >
-            Back to Events
-          </button>
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white px-8 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105"
+            >
+              Continue to App
+            </button>
+          )}
         </div>
       </div>
     );
@@ -237,19 +229,24 @@ const EventRegistrationForm: React.FC<EventRegistrationFormProps> = ({ onBack })
     <div className="max-w-4xl mx-auto">
       {/* Header */}
       <div className="text-center mb-8">
-        <button
-          onClick={onBack}
-          className="inline-flex items-center gap-2 text-green-600 hover:text-green-700 font-semibold mb-6 transition-colors"
-        >
-          <ArrowLeft size={20} />
-          Back to Event Details
-        </button>
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-2 text-green-600 hover:text-green-700 font-semibold mb-6 transition-colors"
+          >
+            <ArrowLeft size={20} />
+            Back to Event Details
+          </button>
+        )}
         
         <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
           Campus to Cloud Event Registration
         </h2>
         <p className="text-lg text-gray-600">
-          Fill out the form below to secure your spot at our exclusive event
+          {isInitialRegistration 
+            ? 'Register for the event to access the application' 
+            : 'Fill out the form below to secure your spot at our exclusive event'
+          }
         </p>
       </div>
 

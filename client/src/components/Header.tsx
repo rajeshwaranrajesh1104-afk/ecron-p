@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, Phone, Mail, MapPin } from 'lucide-react';
 import SocialLinks from './SocialLinks';
+import { useAuth } from './AuthProvider';
 
 const Header: React.FC = () => {
+  const { signOut, userProfile } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
 
@@ -101,6 +103,19 @@ const Header: React.FC = () => {
                   <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-pink-600 transition-all duration-300 group-hover:w-full"></span>
                 </a>
               ))}
+              
+              {/* User Menu */}
+              <div className="flex items-center gap-4 ml-8 pl-8 border-l border-gray-200">
+                <span className="text-sm text-gray-600">
+                  Welcome, {userProfile?.name}
+                </span>
+                <button
+                  onClick={signOut}
+                  className="text-sm bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  Sign Out
+                </button>
+              </div>
             </nav>
 
             {/* Mobile Menu Button */}
